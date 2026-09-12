@@ -4,7 +4,7 @@ from core_generator import generate_lotto_level2, get_recent_5_stats
 
 st.set_page_config(page_title="로또 번호 생성기 Level 2", page_icon="🎱", layout="wide")
 
-# 전회차 및 5회차 데이터 분석 불러오기
+# 전회차 및 5회차 데이터 분석
 appeared_5, unappeared_5, latest_draw = get_recent_5_stats()
 
 st.title("🎱 로또 번호 생성기 (Level 2)")
