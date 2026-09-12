@@ -12,23 +12,39 @@ def calculate_ac(numbers: List[int]) -> int:
             diffs.add(sorted_nums[j] - sorted_nums[i])
     return len(diffs) - (len(numbers) - 1)
 
-# 2. 최근 5회차 데이터 분석 함수 (lotto.xlsx 직접 읽기)
+# 2. 최근 5회차 데이터 분석 함수 (예외 처리 강화)
 def get_recent_5_stats(excel_path: str = "lotto.xlsx") -> Tuple[Set[int], Set[int], List[int]]:
     if not os.path.exists(excel_path):
         return set(), set(range(1, 46)), []
     
     try:
         df = pd.read_excel(excel_path)
-        # 상위 5개 회차 데이터 추출 (회차, 1, 2, 3, 4, 5, 6, 보너스 구조)
-        recent_5 = df.iloc[:5]
         
-        # 가장 최근 1회차 당첨번호 (2~7번째 열)
-        latest_draw = [int(x) for x in recent_5.iloc[0, 1:7].values]
-        
+        # 숫자 데이터만 추출하기 위한 처리
+        valid_rows = []
+        for _, row in df.iterrows():
+            row_nums = []
+            for val in row:
+                try:
+                    num = int(val)
+                    row_nums.append(num)
+                except (ValueError, TypeError):
+                    continue
+            # 로또 번호 6개 이상이 포함된 행만 수집
+            if len(row_nums) >= 6:
+                # 회차 번호를 제외한 6개 당첨번호 추출
+                valid_rows.append(row_nums[1:7] if len(row_nums) >= 7 else row_nums[:6])
+                
+            if len(valid_rows) == 5:
+                break
+                
+        if not valid_rows:
+            return set(), set(range(1, 46)), []
+
+        latest_draw = valid_rows[0]
         appeared = set()
-        for idx in range(len(recent_5)):
-            nums = [int(x) for x in recent_5.iloc[idx, 1:7].values]
-            appeared.update(nums)
+        for r in valid_rows:
+            appeared.update(r)
             
         all_nums = set(range(1, 46))
         unappeared = all_nums - appeared
@@ -56,13 +72,13 @@ def generate_lotto_level2(
     
     appeared_5, unappeared_5, latest_draw = get_recent_5_stats(excel_path)
     
-    # 전회차 이웃수 (±1, ±2) 집합
     neighbors = set()
-    for num in latest_draw:
-        for offset in [-2, -1, 1, 2]:
-            cand = num + offset
-            if 1 <= cand <= 45 and cand not in latest_draw:
-                neighbors.add(cand)
+    if latest_draw:
+        for num in latest_draw:
+            for offset in [-2, -1, 1, 2]:
+                cand = num + offset
+                if 1 <= cand <= 45 and cand not in latest_draw:
+                    neighbors.add(cand)
 
     results = []
     max_attempts = 100000
@@ -73,16 +89,16 @@ def generate_lotto_level2(
             attempts += 1
             cand = set()
             
-            # --- [필터 1: 전회차 이월수 처리] ---
+            # --- [필터 1: 이월수] ---
             if carry_mode == "0개":
                 pass
-            elif carry_mode in ["1개", "2개"]:
+            elif carry_mode in ["1개", "2개"] and latest_draw:
                 k = int(carry_mode[0])
                 if len(latest_draw) >= k:
                     cand.update(random.sample(latest_draw, k))
             elif carry_mode == "직접선택" and custom_carry_nums:
                 cand.update(custom_carry_nums)
-            elif carry_mode == "자동":
+            elif carry_mode == "자동" and latest_draw:
                 k = random.choice([0, 1, 2])
                 if len(latest_draw) >= k and k > 0:
                     cand.update(random.sample(latest_draw, k))
@@ -90,7 +106,7 @@ def generate_lotto_level2(
             if len(cand) > 6:
                 continue
 
-            # --- [필터 2: 구간 쏠림(3~4개) 처리] ---
+            # --- [필터 2: 구간 쏠림] ---
             if section_skew_mode != "선택 OFF":
                 target_range = skew_target_range
                 ranges = {
@@ -109,7 +125,7 @@ def generate_lotto_level2(
                 if needed > 0 and len(pool) >= needed and len(cand) + needed <= 6:
                     cand.update(random.sample(pool, needed))
 
-            # --- [필터 3: 구간별 비중 지정 처리] ---
+            # --- [필터 3: 구간별 비중] ---
             if section_ratio_mode == "대역별 개수 지정" and section_counts:
                 ranges = {
                     "1-9": list(range(1, 10)),
@@ -132,7 +148,7 @@ def generate_lotto_level2(
                 if not valid_spec or len(cand) > 6:
                     continue
 
-            # --- 나머지 번호 무작위 채우기 ---
+            # 나머지 무작위 채우기
             rem_pool = [n for n in range(1, 46) if n not in cand]
             if len(cand) < 6:
                 cand.update(random.sample(rem_pool, 6 - len(cand)))
@@ -141,11 +157,10 @@ def generate_lotto_level2(
             if len(nums) != 6:
                 continue
 
-            # --- [검증 1: AC값] ---
+            # --- [검증 조건들] ---
             if calculate_ac(nums) < min_ac:
                 continue
 
-            # --- [검증 2: 연속 번호 제어] ---
             if not allow_3_consecutive:
                 has_3_consec = False
                 for i in range(len(nums) - 2):
@@ -154,12 +169,10 @@ def generate_lotto_level2(
                 if has_3_consec:
                     continue
 
-            # --- [검증 3: 전회차 이웃수] ---
-            if use_neighbor:
+            if use_neighbor and neighbors:
                 if not any(n in neighbors for n in nums):
                     continue
 
-            # --- [검증 4: 동끝수 제한] ---
             if use_same_end_limit:
                 ends = [n % 10 for n in nums]
                 end_counts = {}
@@ -168,14 +181,13 @@ def generate_lotto_level2(
                 if any(cnt >= 4 for cnt in end_counts.values()):
                     continue
 
-            # --- [검증 5: 최근 5회차 패턴] ---
-            if use_recent_5_pattern:
+            if use_recent_5_pattern and appeared_5:
                 cnt_app = sum(1 for n in nums if n in appeared_5)
                 cnt_unapp = sum(1 for n in nums if n in unappeared_5)
                 if not (2 <= cnt_app <= 3 and 2 <= cnt_unapp <= 3):
                     continue
 
-            # 기본 안전성 검증 (홀짝/합계)
+            # 홀짝 및 합계 기본 안전성
             evens = sum(1 for n in nums if n % 2 == 0)
             if evens not in [2, 3, 4]:
                 continue
