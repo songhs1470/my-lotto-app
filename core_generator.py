@@ -1,5 +1,6 @@
-import sqlite3
+import pandas as pd
 import random
+import os
 from typing import List, Set, Dict, Any, Tuple
 
 # 1. AC 값 계산 함수
@@ -11,48 +12,49 @@ def calculate_ac(numbers: List[int]) -> int:
             diffs.add(sorted_nums[j] - sorted_nums[i])
     return len(diffs) - (len(numbers) - 1)
 
-# 2. 최근 5회차 데이터 분석 함수
-def get_recent_5_stats(db_path: str = "lotto.db") -> Tuple[Set[int], Set[int], List[int]]:
-    conn = sqlite3.connect(db_path)
-    cursor = conn.cursor()
-    cursor.execute("""
-        SELECT num1, num2, num3, num4, num5, num6 
-        FROM lotto_history 
-        ORDER BY draw_number DESC LIMIT 5
-    """)
-    rows = cursor.fetchall()
+# 2. 최근 5회차 데이터 분석 함수 (lotto.xlsx 직접 읽기)
+def get_recent_5_stats(excel_path: str = "lotto.xlsx") -> Tuple[Set[int], Set[int], List[int]]:
+    if not os.path.exists(excel_path):
+        return set(), set(range(1, 46)), []
     
-    # 전회차 당첨번호 (가장 최근 1회차)
-    latest_draw = list(rows[0]) if rows else []
-    
-    appeared = set()
-    for r in rows:
-        appeared.update(r)
+    try:
+        df = pd.read_excel(excel_path)
+        # 상위 5개 회차 데이터 추출 (회차, 1, 2, 3, 4, 5, 6, 보너스 구조)
+        recent_5 = df.iloc[:5]
         
-    all_nums = set(range(1, 46))
-    unappeared = all_nums - appeared
-    conn.close()
-    
-    return appeared, unappeared, latest_draw
+        # 가장 최근 1회차 당첨번호 (2~7번째 열)
+        latest_draw = [int(x) for x in recent_5.iloc[0, 1:7].values]
+        
+        appeared = set()
+        for idx in range(len(recent_5)):
+            nums = [int(x) for x in recent_5.iloc[idx, 1:7].values]
+            appeared.update(nums)
+            
+        all_nums = set(range(1, 46))
+        unappeared = all_nums - appeared
+        
+        return appeared, unappeared, latest_draw
+    except Exception:
+        return set(), set(range(1, 46)), []
 
 # 3. Level 2 통합 로또 번호 생성기
 def generate_lotto_level2(
     count: int = 5,
     min_ac: int = 7,
     allow_3_consecutive: bool = False,
-    carry_mode: str = "자동",  # "자동", "0개", "1개", "2개", "직접선택"
+    carry_mode: str = "자동",
     custom_carry_nums: List[int] = None,
     use_neighbor: bool = False,
     use_same_end_limit: bool = True,
-    section_ratio_mode: str = "선택 OFF",  # "선택 OFF", "대역별 개수 지정", "랜덤"
-    section_counts: Dict[str, int] = None,  # 예: {"1-9": 1, "10-19": 2, ...}
-    section_skew_mode: str = "선택 OFF",   # "선택 OFF", "특정 구간 지정", "랜덤"
-    skew_target_range: str = None,         # "1-9", "10-19", "20-29", "30-39", "40-45"
+    section_ratio_mode: str = "선택 OFF",
+    section_counts: Dict[str, int] = None,
+    section_skew_mode: str = "선택 OFF",
+    skew_target_range: str = None,
     use_recent_5_pattern: bool = False,
-    db_path: str = "lotto.db"
+    excel_path: str = "lotto.xlsx"
 ) -> List[List[int]]:
     
-    appeared_5, unappeared_5, latest_draw = get_recent_5_stats(db_path)
+    appeared_5, unappeared_5, latest_draw = get_recent_5_stats(excel_path)
     
     # 전회차 이웃수 (±1, ±2) 집합
     neighbors = set()
@@ -157,7 +159,7 @@ def generate_lotto_level2(
                 if not any(n in neighbors for n in nums):
                     continue
 
-            # --- [검증 4: 동끝수 제한 (2~3개 이하)] ---
+            # --- [검증 4: 동끝수 제한] ---
             if use_same_end_limit:
                 ends = [n % 10 for n in nums]
                 end_counts = {}
