@@ -12,16 +12,15 @@ def calculate_ac(numbers: List[int]) -> int:
             diffs.add(sorted_nums[j] - sorted_nums[i])
     return len(diffs) - (len(numbers) - 1)
 
-# 2. 최근 5회차 데이터 분석 함수 (예외 처리 강화)
+# 2. 최근 5회차 데이터 분석 함수 (sqlite3 완전 제거, pandas 기반)
 def get_recent_5_stats(excel_path: str = "lotto.xlsx") -> Tuple[Set[int], Set[int], List[int]]:
     if not os.path.exists(excel_path):
         return set(), set(range(1, 46)), []
     
     try:
         df = pd.read_excel(excel_path)
-        
-        # 숫자 데이터만 추출하기 위한 처리
         valid_rows = []
+        
         for _, row in df.iterrows():
             row_nums = []
             for val in row:
@@ -30,11 +29,9 @@ def get_recent_5_stats(excel_path: str = "lotto.xlsx") -> Tuple[Set[int], Set[in
                     row_nums.append(num)
                 except (ValueError, TypeError):
                     continue
-            # 로또 번호 6개 이상이 포함된 행만 수집
             if len(row_nums) >= 6:
-                # 회차 번호를 제외한 6개 당첨번호 추출
+                # 회차 번호를 제외한 당첨번호 6개 수집
                 valid_rows.append(row_nums[1:7] if len(row_nums) >= 7 else row_nums[:6])
-                
             if len(valid_rows) == 5:
                 break
                 
@@ -148,7 +145,7 @@ def generate_lotto_level2(
                 if not valid_spec or len(cand) > 6:
                     continue
 
-            # 나머지 무작위 채우기
+            # 나머지 번호 채우기
             rem_pool = [n for n in range(1, 46) if n not in cand]
             if len(cand) < 6:
                 cand.update(random.sample(rem_pool, 6 - len(cand)))
@@ -157,7 +154,7 @@ def generate_lotto_level2(
             if len(nums) != 6:
                 continue
 
-            # --- [검증 조건들] ---
+            # --- [검증 로직] ---
             if calculate_ac(nums) < min_ac:
                 continue
 
@@ -187,7 +184,6 @@ def generate_lotto_level2(
                 if not (2 <= cnt_app <= 3 and 2 <= cnt_unapp <= 3):
                     continue
 
-            # 홀짝 및 합계 기본 안전성
             evens = sum(1 for n in nums if n % 2 == 0)
             if evens not in [2, 3, 4]:
                 continue
