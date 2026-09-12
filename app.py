@@ -10,7 +10,6 @@ st.set_page_config(page_title="로또 번호 생성기 Level 2", page_icon="🎱
 def init_db():
     update_lotto_database()
 
-init_db()
 
 # 전회차 번호 가져오기
 appeared_5, unappeared_5, latest_draw = get_recent_5_stats()
