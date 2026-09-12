@@ -1,17 +1,10 @@
 import streamlit as st
-import sqlite3
 import pandas as pd
 from core_generator import generate_lotto_level2, get_recent_5_stats
 
 st.set_page_config(page_title="로또 번호 생성기 Level 2", page_icon="🎱", layout="wide")
 
-# DB 최신화
-@st.cache_resource
-def init_db():
-    update_lotto_database()
-
-
-# 전회차 번호 가져오기
+# 전회차 및 5회차 데이터 분석 불러오기
 appeared_5, unappeared_5, latest_draw = get_recent_5_stats()
 
 st.title("🎱 로또 번호 생성기 (Level 2)")
@@ -29,7 +22,7 @@ allow_3_consec = st.sidebar.checkbox("3연속 이상 번호 허용 (제한 해�
 # 3. 전회차 이월수
 carry_mode = st.sidebar.selectbox("전회차 이월수 설정", ["자동", "0개", "1개", "2개", "직접선택"])
 custom_carry = []
-if carry_mode == "직접선택":
+if carry_mode == "직접선택" and latest_draw:
     custom_carry = st.sidebar.multiselect("이월시킬 번호 선택 (최대 2개)", latest_draw, max_selections=2)
 
 # 4. 전회차 이웃수
@@ -67,7 +60,6 @@ col1, col2 = st.columns([2, 1])
 with col1:
     count = st.slider("생성할 게임 수", 1, 10, 5)
     if st.button("✨ Level 2 최적 조합 생성하기", use_container_width=True):
-        # 비중 개수 검증
         if section_ratio_mode == "대역별 개수 지정" and sum(section_counts.values()) != 6:
             st.error("구간별 대역 개수의 총합이 반드시 6개여야 합니다!")
         else:
