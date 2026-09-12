@@ -1,7 +1,6 @@
 import streamlit as st
 import sqlite3
 import pandas as pd
-from db_pipeline import update_lotto_database
 from core_generator import generate_lotto_level2, get_recent_5_stats
 
 st.set_page_config(page_title="로또 번호 생성기 Level 2", page_icon="🎱", layout="wide")
